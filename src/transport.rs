@@ -137,7 +137,8 @@ impl CrewTransport for SseHttpTransport {
 
             while let Some(chunk) = bytes.next().await {
                 let chunk = chunk?;
-                buffer.push_str(&String::from_utf8_lossy(&chunk));
+                let chunk_str = String::from_utf8_lossy(&chunk);
+                buffer.push_str(&chunk_str);
 
                 while let Some(raw_event) = extract_next_event(&mut buffer) {
                     if let Some(data) = parse_sse_data_block(&raw_event) {
@@ -153,6 +154,19 @@ impl CrewTransport for SseHttpTransport {
                     let payload: Value = serde_json::from_str(&data)
                         .map_err(|_| BridgeError::InvalidEventJson(data.clone()))?;
                     yield map_event(payload)?;
+                } else if let Ok(payload) = serde_json::from_str::<Value>(&buffer) {
+                    // Handle plain JSON response (non-SSE format)
+                    if payload.get("content").is_some() {
+                        // Convert plain JSON response to Done event
+                        yield BridgeEvent::Done {
+                            content: payload.get("content")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string(),
+                            input_tokens: as_u32(payload.get("input_tokens")),
+                            output_tokens: as_u32(payload.get("output_tokens")),
+                        };
+                    }
                 }
             }
         };
