@@ -17,6 +17,12 @@ pub struct CrewStreamRequest {
     pub message: String,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CrewProfileOverride {
+    pub model: Option<String>,
+    pub system_prompt: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BridgeEvent {
     Thinking {
@@ -60,6 +66,8 @@ pub enum BridgeError {
     Request(#[from] reqwest::Error),
     #[error("crew status {status}: {body}")]
     HttpStatus { status: StatusCode, body: String },
+    #[error("crew profile override requires an auth token")]
+    ProfileOverrideRequiresAuth,
     #[error("invalid SSE payload: {0}")]
     InvalidEventJson(String),
     #[error("invalid bridge event payload: {0}")]
@@ -105,6 +113,48 @@ impl SseHttpTransport {
         self.base_url
             .join("/api/status")
             .map_err(|error| BridgeError::InvalidEventPayload(error.to_string()))
+    }
+
+    fn my_profile_url(&self) -> Result<Url, BridgeError> {
+        self.base_url
+            .join("/api/my/profile")
+            .map_err(|error| BridgeError::InvalidEventPayload(error.to_string()))
+    }
+
+    pub async fn apply_profile_override(
+        &self,
+        profile_override: &CrewProfileOverride,
+    ) -> Result<(), BridgeError> {
+        let Some(auth_token) = self.auth_token.as_deref() else {
+            if profile_override.model.is_none() && profile_override.system_prompt.is_none() {
+                return Ok(());
+            }
+            return Err(BridgeError::ProfileOverrideRequiresAuth);
+        };
+
+        let url = self.my_profile_url()?;
+        let response = self
+            .client
+            .put(url)
+            .bearer_auth(auth_token)
+            .json(&serde_json::json!({
+                "config": {
+                    "model": profile_override.model.clone(),
+                    "gateway": {
+                        "system_prompt": profile_override.system_prompt.clone(),
+                    }
+                }
+            }))
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(BridgeError::HttpStatus { status, body })
+        }
     }
 }
 

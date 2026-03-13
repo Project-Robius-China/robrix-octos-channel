@@ -20,5 +20,6 @@ pub use state::{
 };
 pub use store::{StateStore, StateStoreError};
 pub use transport::{
-    BridgeError, BridgeEvent, BridgeEventStream, CrewStreamRequest, CrewTransport, SseHttpTransport,
+    BridgeError, BridgeEvent, BridgeEventStream, CrewProfileOverride, CrewStreamRequest,
+    CrewTransport, SseHttpTransport,
 };

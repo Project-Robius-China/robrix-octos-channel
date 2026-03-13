@@ -1,9 +1,10 @@
 [package]
-name = "crew-robrix-channel"
+name = "robrix-crew-channel"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "Glue layer between Robrix room state and Crew execution profiles."
+description = "Crew channel abstraction for Robrix runtimes."
+repository = "ssh://git@github.com/Project-Robius-China/robrix-crew-channel.git"
 
 [dependencies]
 async-stream = "0.3"
